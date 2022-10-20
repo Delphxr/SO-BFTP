@@ -77,7 +77,8 @@ void *connection_handler(void *socket_desc) {
     return 0;
 }
 
-// se encarga de escuchar como server, a ver si un cliente se une
+// se encarga de escuchar como server, a ver si un cliente se une 
+//y crea un thread nuevo para que sea su server privado
 void *listener_thread() {
     int socket_desc, client_sock, c, *new_sock;
     struct sockaddr_in server, client;
@@ -108,7 +109,7 @@ void *listener_thread() {
     // revisamos si hay conexiones
     while ((client_sock = accept(socket_desc, (struct sockaddr *)&client,
                                  (socklen_t *)&c))) {
-        //puts("Connection accepted");
+        puts("Connection accepted");
         pthread_t sniffer_thread;
         new_sock = malloc(1);
         *new_sock = client_sock;
@@ -155,13 +156,13 @@ void main(int argc, char *argv[]) {
         fgets(input, 60, stdin);
         sscanf(input, "%s %s", command, parameter);
         // condiciones del menu
+
         if (strcmp(command, "open") == 0) {
             // Create socket
             sock = socket(AF_INET, SOCK_STREAM, 0);
             if (sock == -1) {
                 printf("Could not create socket");
             }
-            puts("Socket created");
 
             server.sin_addr.s_addr = inet_addr(parameter);
             server.sin_family = AF_INET;
@@ -170,10 +171,6 @@ void main(int argc, char *argv[]) {
             if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
                 print_red(" [!] Connect failed. Error");
             }
-            puts("Connected\n");
-            memset(command, 0, sizeof(command));
-            memset(parameter, 0, sizeof(parameter));
-            continue;
         } else if (strcmp(command, "close") == 0) {
             if (sock != -1) {
                 close(sock);
