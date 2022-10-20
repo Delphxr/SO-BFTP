@@ -1,132 +1,216 @@
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <pthread.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-/*
-██████╗       ███████╗████████╗██████╗
-██╔══██╗      ██╔════╝╚══██╔══╝██╔══██╗
-██████╔╝█████╗█████╗     ██║   ██████╔╝
-██╔══██╗╚════╝██╔══╝     ██║   ██╔═══╝
-██████╔╝      ██║        ██║   ██║
-╚═════╝       ╚═╝        ╚═╝   ╚═╝
-open <dirección-ip>: establece una conexión remota
-close: cierra la conexión actual
-quit: termina el programa
-cd <directorio>: cambia de directorio remoto
-get <archivo>: recupera un archivo remoto
-lcd <directorio>: cambia de directorio local
-ls: lista los archivos del directorio remoto
-put <archivo>: envía un archivo a la máquina remota
-pwd: muestra el directorio activo remoto
-*/
+#include <sys/socket.h>
+#include <unistd.h>
 
-void clean_terminal() {
-    printf("\e[1;1H\e[2J");
+#include "gui_drawer.h"
+
+int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, como guia en gui
+
+// cuando alguien se conecta se crea un hilo con este thread (server)
+void *connection_handler(void *socket_desc) {
+    // Get the socket descriptor
+    int sock = *(int *)socket_desc;
+
+    int read_size, c;
+    char *message, client_message[2000];
+    FILE *file;
+    // Send some messages to the client
+
+    // Receive a message from client
+    while ((read_size = recv(sock, client_message, 2000, 0)) > 0) {
+        // Send the message back to client
+        printf("Se ha recibido: %s \n", client_message);
+
+        // vamos a leer y devolver un mensaje con el archivo!!!!!
+        file = fopen(client_message, "r");
+        if (file == NULL) {
+            printf("Error opening file!\n");
+            strcpy(client_message, "\nHubo un error");
+            send(sock, client_message, strlen(client_message), 0);
+            memset(client_message, 0, sizeof(client_message));
+            continue;
+        }
+        int index = 0;
+        while ((c = fgetc(file)) != EOF) {
+            client_message[index] = c;
+            if (index == 1999) {
+                send(sock, client_message, strlen(client_message), 0);
+                memset(client_message, 0, sizeof(client_message));
+                index = 0;
+            }
+            index++;
+        }
+        send(sock, client_message, strlen(client_message), 0);
+        fclose(file);
+
+        memset(client_message, 0, sizeof(client_message));
+    }
+    if (read_size == 0) {
+        puts("Client disconnected");
+        actual_conections--;
+        fflush(stdout);
+    } else if (read_size == -1) {
+        perror("recv failed");
+    }
+    // Free the socket pointer
+    free(socket_desc);
+    return 0;
 }
 
-void progress_bar(double percentage) {
-    char bar[] = "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||";
-    int pb_width = 70;
-    int val = (int) (percentage * 100);
-    int lpad = (int) (percentage * pb_width);
-    int rpad = pb_width - lpad;
-    printf("\r\033[31;1m [\033[34;1m%.*s%*s\033[0m\033[31;1m]\033[1;33m %3d%%\033[0m", lpad, bar, rpad, "", val);
-    fflush(stdout);
+// se encarga de escuchar como server, a ver si un cliente se une
+void *listener_thread() {
+    int socket_desc, client_sock, c, *new_sock;
+    struct sockaddr_in server, client;
+
+    // Create socket
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1) {
+        printf(" No se pudo crear el socket\n");
+    }
+
+    // Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(8888);
+    // Bind
+    if (bind(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        // print the error message
+        perror(" Bind failed. Error");
+        exit(-1);
+        ;
+    }
+
+    // Listen
+    listen(socket_desc, 3);
+    // Accept and incoming connection
+    // puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+    // revisamos si hay conexiones
+    while ((client_sock = accept(socket_desc, (struct sockaddr *)&client,
+                                 (socklen_t *)&c))) {
+        puts("Connection accepted");
+        pthread_t sniffer_thread;
+        new_sock = malloc(1);
+        *new_sock = client_sock;
+        if (pthread_create(&sniffer_thread, NULL, connection_handler,
+                           (void *)new_sock) < 0) {
+            perror("could not create thread");
+            exit(-1);
+            ;
+        }
+        // Now join the thread , so that we dont terminate before the thread
+        // pthread_join( sniffer_thread , NULL);
+        puts("Handler assigned");
+        actual_conections++;
+        
+    }
+    if (client_sock < 0) {
+        perror("accept failed");
+        exit(-1);
+    }
 }
 
-// imprimimos una de las opciones del menu, con todo y color
-void print_menu_option(char command[], char parameters[], char description[]) {
-    printf(
-        "\033[1;24;36m"
-        " > %s\t",
-        command);
-    printf(
-        "\033[34;1m"
-        "%s\t"
-        "\033[7;34;37m",
-        parameters);
-    printf("%s\033[0m \n", description);
+// nos conectamos como clientes a un server
+int open_conection(char adress[]) {
+    int sock;
+    struct sockaddr_in server;
+    char message[1000], server_reply[2000];
+
+    // Create socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1) {
+        printf("Could not create socket");
+    }
+    puts("Socket created");
+
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server.sin_family = AF_INET;
+    server.sin_port = htons(8888);
+    // Connect to remote server
+    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        perror("connect failed. Error");
+        return 1;
+    }
+    puts("Connected\n");
+    // keep communicating with server
+    while (1) {
+        printf("\nEnter message : ");
+        scanf("%s", message);
+
+        // Send some data
+        if (send(sock, message, strlen(message), 0) < 0) {
+            puts("Send failed");
+            return 1;
+        }
+        // Receive a reply from the server
+
+        memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
+
+        if (recv(sock, server_reply, 2000, 0) < 0) {
+            puts("recv failed");
+            break;
+        }
+        puts("Server reply :");
+        puts(server_reply);
+    }
+    close(sock);
+
+    return 0;
 }
 
-// imprimimos una linea para gui
-void print_linea() {
-    printf("\033[1;33m------------------------------------------------------------------------\n\033[0m");
-}
-
-void print_menu() {
-    printf(
-        "                \033[1;33m██████\033[31;1m╗       \033[1;33m███████\033[31;1m╗\033[1;33m████████\033[31;1m╗\033[1;33m██████\033[31;1m╗ \n"
-        "                \033[1;33m██\033[31;1m╔══\033[1;33m██\033[31;1m╗      \033[1;33m██\033[31;1m╔════╝╚══\033[1;33m██\033[31;1m╔══╝\033[1;33m██\033[31;1m╔══\033[1;33m██\033[31;1m╗\n"
-        "                \033[1;33m██████\033[31;1m╔╝\033[1;33m█████\033[31;1m╗\033[1;33m█████\033[31;1m╗     \033[1;33m██\033[31;1m║   \033[1;33m██████\033[31;1m╔╝\n"
-        "                \033[1;33m██\033[31;1m╔══\033[1;33m██\033[31;1m╗╚════╝\033[1;33m██\033[31;1m╔══╝     \033[1;33m██\033[31;1m║   \033[1;33m██\033[31;1m╔═══╝ \n"
-        "                \033[1;33m██████\033[31;1m╔╝      \033[1;33m██\033[31;1m║        \033[1;33m██\033[31;1m║   \033[1;33m██\033[31;1m║     \n"
-        "                \033[31;1m╚═════╝       ╚═╝        ╚═╝   ╚═╝     \n \033[0m");
-
-    print_linea();
-
-    print_menu_option("open ", "<dirección-ip>", "Establece una conexión remota");
-    print_menu_option("close", "        ", "Cierra la conexión actual");
-    print_menu_option("quit ", "        ", "Termina el programa");
-    print_menu_option("cd   ", "<directorio> ", "Cambia de directorio remoto");
-    print_menu_option("get  ", "<archivo> ", "Recupera un archivo remoto");
-    print_menu_option("lcd  ", "<directorio>  ", "Cambia de directorio local");
-    print_menu_option("ls   ", "        ", "Lista los archivos del directorio remoto");
-    print_menu_option("put  ", "<archivo>", "Envía un archivo a la máquina remota");
-    print_menu_option("pwd  ", "        ", "Muestra el directorio activo remoto");
-    print_linea();
-
-    printf("\n\033[34;1m > \033[0m");
-}
 
 void main(int argc, char *argv[]) {
-    char input[60];
-
+    char input[60];      // input de comandos
     char command[60];    // comando prncipal (open, close, cd, get, etc)
-    char parameter[60];  // guardamosos parametros del commando
+    char parameter[60];  // parametros del commando (ip, archivo, etc)
 
+    // creamos el thread listener
+    pthread_t listener;
+    int return_code = pthread_create(&listener, NULL, listener_thread, NULL);
+    if (return_code) {
+        printf("ERROR; return code from pthread_create() is %d\n", return_code);
+        exit(-1);
+    }
+
+    // menu loop
     while (1) {
         clean_terminal();
-        print_menu();
+        print_menu(actual_conections);
+
+        // menu input
         fgets(input, 60, stdin);
         sscanf(input, "%s %s", command, parameter);
-
-        //condiciones del menu
+        // condiciones del menu
         if (strcmp(command, "open") == 0) {
-            printf("commando open!");
-        }
-        else if (strcmp(command, "close") == 0) {
+            open_conection(parameter);
+        } else if (strcmp(command, "close") == 0) {
             printf("commando close!");
-        }
-        else if (strcmp(command, "quit") == 0) {
-            printf("commando quit!");
-        }
-        else if (strcmp(command, "cd") == 0) {
+        } else if (strcmp(command, "quit") == 0) {
+            return;
+            exit(0);
+        } else if (strcmp(command, "cd") == 0) {
             printf("commando cd!");
-        }
-        else if (strcmp(command, "get") == 0) {
+        } else if (strcmp(command, "get") == 0) {
             printf("commando get!");
-        }
-        else if (strcmp(command, "lcd") == 0) {
+        } else if (strcmp(command, "lcd") == 0) {
             printf("commando lcd!");
-        }
-        else if (strcmp(command, "ls") == 0) {
+        } else if (strcmp(command, "ls") == 0) {
             printf("commando ls!");
-        }
-        else if (strcmp(command, "put") == 0) {
+        } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
-        }
-        else if (strcmp(command, "pwd") == 0) {
+        } else if (strcmp(command, "pwd") == 0) {
             printf("commando pwd!");
-        }
-        else{
-            printf("\033[31m[!] Comando Desconocido!\033[0m");
-            for (size_t i = 0; i < 11; i++)
-            {
-                progress_bar(i/10.0);
+        } else {
+            print_red("[!] Comando Desconocido!\n");
+            for (size_t i = 0; i < 11; i++) {
+                progress_bar(i / 10.0);
                 usleep(35000);
-     
             }
-            
         }
         getchar();
     }

@@ -1,33 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501 /* Windows XP. */
-#endif
-#include <Ws2tcpip.h>
-#include <winsock2.h>
 
-#else
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#endif
-#if defined _WIN32
-#define close(x) closesocket(x)
-#endif
+
 #include <pthread.h>
 // the thread function
 void *connection_handler(void *);
+
+
+
 int main(int argc, char *argv[])
 {
     int socket_desc, client_sock, c, *new_sock;
     struct sockaddr_in server, client;
-#if defined _WIN32
-    WSADATA wsa_data;
-    WSAStartup(MAKEWORD(1, 1), &wsa_data);
-#endif
+
     // Create socket
     socket_desc = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_desc == -1)
@@ -54,8 +44,6 @@ int main(int argc, char *argv[])
     puts("Waiting for incoming connections...");
     c = sizeof(struct sockaddr_in);
     // Accept and incoming connection
-    puts("Waiting for incoming connections...");
-    c = sizeof(struct sockaddr_in);
     while ((client_sock = accept(socket_desc, (struct sockaddr *)&client,
                                  (socklen_t *)&c)))
     {
@@ -78,9 +66,7 @@ int main(int argc, char *argv[])
         perror("accept failed");
         return 1;
     }
-#if defined _WIN32
-    WSACleanup();
-#endif
+
     return 0;
 }
 /*
