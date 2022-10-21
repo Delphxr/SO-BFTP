@@ -233,7 +233,14 @@ void main(int argc, char *argv[]) {
                 print_yellow("Presione enter para continuar...");
             }
         } else if (strcmp(command, "lcd") == 0) {
-            printf("commando lcd!");
+            chdir(parameter);
+            char pwd[100];
+
+            clean_terminal();
+            print_line();
+            puts(getcwd(pwd, 100));
+            print_line();
+            print_yellow("Presione enter para continuar...");
         } else if (strcmp(command, "ls") == 0) {
             if (sock != -1) {
                 // Send some data
