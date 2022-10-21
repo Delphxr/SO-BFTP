@@ -120,7 +120,7 @@ char *magic(int level, char *pathy) {
 char *print_directorio() {
     // revisamos si hay mas de 1 argumentos, el argumento 0 es el nombre del programa
     char *server_reply = malloc(sizeof(char) * 2000);
-    strcpy(server_reply, "Archivos en el directorio Actual: \n");
+    strcpy(server_reply, "\033[1;33mArchivos en el directorio Actual: \033[0m\n");
     strcpy(server_reply, magic(0, "."));
     return server_reply;
 }
