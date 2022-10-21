@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "gui_drawer.h"
+#include "tree.h"
 
 int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, como guia en gui
 
@@ -25,14 +26,14 @@ void *connection_handler(void *socket_desc) {
 
     // Receive a message from client
     while ((read_size = recv(sock, client_message, 2000, 0)) > 0) {
-        //dividimos el input entre commando-parametro
+        // dividimos el input entre commando-parametro
         sscanf(client_message, "%s %s", command, parameter);
 
         if (strcmp(command, "cd") == 0) {
             printf("commando cd!");
         } else if (strcmp(command, "get") == 0) {
             // vamos a leer y devolver un mensaje con el archivo!!!!!
-            
+
             file = fopen(parameter, "r");
             if (file == NULL) {
                 printf("Error opening file!\n");
@@ -56,7 +57,8 @@ void *connection_handler(void *socket_desc) {
         } else if (strcmp(command, "lcd") == 0) {
             printf("commando lcd!");
         } else if (strcmp(command, "ls") == 0) {
-            printf("commando ls!");
+            strcpy(client_message, print_directorio());
+            send(sock, client_message, strlen(client_message), 0);
         } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
         } else if (strcmp(command, "pwd") == 0) {
@@ -77,8 +79,8 @@ void *connection_handler(void *socket_desc) {
     return 0;
 }
 
-// se encarga de escuchar como server, a ver si un cliente se une 
-//y crea un thread nuevo para que sea su server privado
+/* se encarga de escuchar como server, a ver si un cliente se une
+y crea un thread nuevo para que sea su server privado*/
 void *listener_thread() {
     int socket_desc, client_sock, c, *new_sock;
     struct sockaddr_in server, client;
@@ -145,7 +147,7 @@ void main(int argc, char *argv[]) {
     // client
     int sock;
     struct sockaddr_in server;
-    char message[1000], server_reply[2000];
+    char server_reply[2000];
 
     // menu loop
     while (1) {
@@ -159,17 +161,19 @@ void main(int argc, char *argv[]) {
 
         if (strcmp(command, "open") == 0) {
             // Create socket
-            sock = socket(AF_INET, SOCK_STREAM, 0);
-            if (sock == -1) {
-                printf("Could not create socket");
-            }
+            if (sock != -1) {
+                sock = socket(AF_INET, SOCK_STREAM, 0);
+                if (sock == -1) {
+                    printf("Could not create socket");
+                }
 
-            server.sin_addr.s_addr = inet_addr(parameter);
-            server.sin_family = AF_INET;
-            server.sin_port = htons(8888);
-            // Connect to remote server
-            if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-                print_red(" [!] Connect failed. Error");
+                server.sin_addr.s_addr = inet_addr(parameter);
+                server.sin_family = AF_INET;
+                server.sin_port = htons(8888);
+                // Connect to remote server
+                if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+                    print_red(" [!] Connect failed. Error");
+                }
             }
         } else if (strcmp(command, "close") == 0) {
             if (sock != -1) {
@@ -195,7 +199,7 @@ void main(int argc, char *argv[]) {
                     puts("recv failed");
                     break;
                 }
-                //clean_terminal();
+                clean_terminal();
                 print_line();
                 puts(server_reply);
                 print_line();
@@ -204,7 +208,26 @@ void main(int argc, char *argv[]) {
         } else if (strcmp(command, "lcd") == 0) {
             printf("commando lcd!");
         } else if (strcmp(command, "ls") == 0) {
-            printf("commando ls!");
+            if (sock != -1) {
+                // Send some data
+                if (send(sock, input, strlen(input), 0) < 0) {
+                    print_red("[!] Send failed");
+                    getchar();
+                    continue;
+                }
+
+                memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
+
+                if (recv(sock, server_reply, 2000, 0) < 0) {
+                    puts("recv failed");
+                    break;
+                }
+                clean_terminal();
+                print_line();
+                puts(server_reply);
+                print_line();
+                print_yellow("Presione enter para continuar...");
+            }
         } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
         } else if (strcmp(command, "pwd") == 0) {
