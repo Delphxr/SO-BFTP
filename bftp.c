@@ -47,6 +47,7 @@ void *connection_handler(void *socket_desc) {
                 memset(client_message, 0, sizeof(client_message));
                 continue;
             }
+
             int index = 0;
             while ((c = fgetc(file)) != EOF) {
                 client_message[index] = c;
@@ -58,6 +59,7 @@ void *connection_handler(void *socket_desc) {
                 index++;
             }
             send(sock, client_message, strlen(client_message), 0);
+
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
             printf("commando lcd!");
@@ -139,6 +141,45 @@ void *listener_thread() {
     }
 }
 
+// funcion generica para el manejo de los commandos más simples del servicio, envia un mensaje, recibe respuesta, imprime
+int command_manager(int *sock, char *server_reply[2000], char *input[60], char *parameter[60]) {
+    if (*sock != -1) {
+        // Send some data
+        if (send(*sock, *input, strlen(*input), 0) < 0) {
+            print_red("[!] Send failed");
+            getchar();
+            return -1;
+        }
+
+        memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
+
+        if (recv(*sock, *server_reply, 2000, 0) < 0) {
+            puts("recv failed");
+            return -1;
+        }
+        clean_terminal();
+        print_line();
+        puts(*server_reply);
+        print_line();
+        print_yellow("Presione enter para continuar...");
+        return 0;
+    }
+    return -1;
+}
+
+// verifica si un comando forma parte de las funciones genericas
+int is_generic_funtion(char *target) {
+    char *arr[] = {"ls", "cd", "pwd"};
+    int len = 3;
+    int i;
+    for (i = 0; i < len; i++) {
+        if (strncmp(arr[i], target, strlen(target)) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void main(int argc, char *argv[]) {
     char input[60];      // input de comandos
     char command[60];    // comando prncipal (open, close, cd, get, etc)
@@ -190,27 +231,6 @@ void main(int argc, char *argv[]) {
         } else if (strcmp(command, "quit") == 0) {
             return;
             exit(0);
-        } else if (strcmp(command, "cd") == 0) {
-            if (sock != -1) {
-                // Send some data
-                if (send(sock, input, strlen(input), 0) < 0) {
-                    print_red("[!] Send failed");
-                    getchar();
-                    continue;
-                }
-
-                memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
-
-                if (recv(sock, server_reply, 2000, 0) < 0) {
-                    puts("recv failed");
-                    break;
-                }
-                clean_terminal();
-                print_line();
-                puts(server_reply);
-                print_line();
-                print_yellow("Presione enter para continuar...");
-            }
         } else if (strcmp(command, "get") == 0) {
             if (sock != -1) {
                 // Send some data
@@ -241,50 +261,13 @@ void main(int argc, char *argv[]) {
             puts(getcwd(pwd, 100));
             print_line();
             print_yellow("Presione enter para continuar...");
-        } else if (strcmp(command, "ls") == 0) {
-            if (sock != -1) {
-                // Send some data
-                if (send(sock, input, strlen(input), 0) < 0) {
-                    print_red("[!] Send failed");
-                    getchar();
-                    continue;
-                }
-
-                memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
-
-                if (recv(sock, server_reply, 2000, 0) < 0) {
-                    puts("recv failed");
-                    break;
-                }
-                clean_terminal();
-                print_line();
-                puts(server_reply);
-                print_line();
-                print_yellow("Presione enter para continuar...");
-            }
         } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
-        } else if (strcmp(command, "pwd") == 0) {
-            if (sock != -1) {
-                // Send some data
-                if (send(sock, input, strlen(input), 0) < 0) {
-                    print_red("[!] Send failed");
-                    getchar();
-                    continue;
-                }
-
-                memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
-
-                if (recv(sock, server_reply, 2000, 0) < 0) {
-                    puts("recv failed");
-                    break;
-                }
-                clean_terminal();
-                print_line();
-                puts(server_reply);
-                print_line();
-                print_yellow("Presione enter para continuar...");
-            }
+        } else if (is_generic_funtion(command)) {  // se encarga de mann el ls, cd, pwd
+            char *reply_ptr = server_reply; 
+            char *input_ptr = input;
+            char *par_ptr = parameter;
+            command_manager(&sock, &reply_ptr, &input_ptr, &par_ptr);
         } else {
             print_red("[!] Comando Desconocido!\n");
             /*for (size_t i = 0; i < 11; i++) {
@@ -293,6 +276,7 @@ void main(int argc, char *argv[]) {
             }*/
         }
         getchar();
+        memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
         memset(command, 0, sizeof(command));
         memset(parameter, 0, sizeof(parameter));
     }
