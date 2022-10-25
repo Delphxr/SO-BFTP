@@ -99,7 +99,7 @@ void *connection_handler(void *socket_desc) {
                 index++;
                 int i = 0;
                 while (i < BUFFER_SIZE) {
-                    int l = send(sock, client_message, sizeof(client_message), 0);
+                    int l = send(sock, client_message, BUFFER_SIZE, 0);
                     i += l;
                 }
                 // send(sock, client_message, sizeof(client_message), 0);
