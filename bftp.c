@@ -56,6 +56,7 @@ int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
             return l;
         }  // this is an error
         i += l;
+        memset(*buffer, 0, sizeof(*buffer));  // limapiamos el buffer
     }
     return i;
 }
