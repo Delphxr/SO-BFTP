@@ -42,6 +42,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
     return 0;
 }
 
+
 // es un hilo creado por el listener thread, se encarga de atender a los clientes que se unan al servicio
 void *connection_handler(void *socket_desc) {
     // Get the socket descriptor
@@ -97,12 +98,7 @@ void *connection_handler(void *socket_desc) {
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
                 // printf("enviando parte %d de %d- \n", index, parts);
                 index++;
-                int i = 0;
-                while (i < BUFFER_SIZE) {
-                    int l = send(sock, client_message, BUFFER_SIZE, 0);
-                    i += l;
-                }
-                // send(sock, client_message, sizeof(client_message), 0);
+                send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
             }
             printf("Archivo enviado! %d partes de %d - con un size de %d \n", index, parts, size);
