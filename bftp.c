@@ -53,7 +53,7 @@ int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     while (i < strlen(*buffer)) {
         int l = send(*sock, *buffer, strlen(*buffer), 0);
         i += l;
-        *buffer += l;       
+        *buffer += l;
     }
     return i;
 }
@@ -118,18 +118,25 @@ void *connection_handler(void *socket_desc) {
             send(sock, client_message, strlen(client_message), 0);
             memset(client_message, 0, sizeof(client_message));
 
-            // mandamos el archivo en partes de 2000;
-            int index = 1;
             print_blue("Iniciando envio del archivo... \n");
-            while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
-                // printf("enviando parte %d de %d- \n", index, parts);
-                index++;
-                char *temp_message = client_message;
-                send_buffer_content(&sock, &temp_message);
-                memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
-            }
 
-            strcpy(client_message, "END \n\r\n\r");  // avisamos que se va a enviar un archivo
+            int index = 0;
+            while ((c = fgetc(file)) != EOF) {
+                client_message[index] = c;
+                index++;
+                if (index == 2000) {
+                    char *temp_message = client_message;
+                    send_buffer_content(&sock, &temp_message);
+                    memset(client_message, 0, sizeof(client_message));
+                    index = 0;
+                }
+            }
+            // mandamos lo que falta
+            char *temp_message = client_message;
+            send_buffer_content(&sock, &temp_message);
+            memset(client_message, 0, sizeof(client_message));
+
+            strcpy(client_message, "END \n\r\n\r");  // avisamos que se termino el proceso
             send(sock, client_message, strlen(client_message), 0);
 
             printf("Archivo enviado! %d partes de %d \n", index, parts);
