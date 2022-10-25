@@ -52,12 +52,8 @@ int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < strlen(*buffer)) {
         int l = send(*sock, *buffer, strlen(*buffer), 0);
-        if (l < 0) {
-            return l;
-        }  // this is an error
         i += l;
-        *buffer += l;
-       
+        *buffer += l;       
     }
     return i;
 }
