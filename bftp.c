@@ -50,7 +50,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < BUFFER_SIZE) {
-        int l = send(*sock, buffer[i], sizeof(char), 0);
+        int l = send(*sock, buffer[i], sizeof(buffer[i]), 0);
         if (l < 0) {
             return l;
         }  // this is an error
