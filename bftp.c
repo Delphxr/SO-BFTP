@@ -28,20 +28,21 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
     while (1) {
         int received_bytes = 0;
         while (received_bytes < BUFFER_SIZE) {
-            int response = recv(*sock, *server_reply, BUFFER_SIZE, 0);
+            int response = recv(*sock, *server_reply, strlen(*server_reply), 0);
             if (response < 0) {
                 puts("recv failed");
                 return -1;
             }
             received_bytes += response;
+            printf("\n%s", *server_reply);
+            fprintf(file, "%s", *server_reply);
         }
 
-        progress_bar(loading);
-        printf(" - %d", index);  // printf(" - %s - ", *server_reply);
+        // progress_bar(loading);
+        // printf(" - %d - ", index);  // printf(" - %s - ", *server_reply);
         index++;
 
         // fflush(file);
-        fprintf(file, "%s", *server_reply);
 
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
@@ -50,7 +51,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 }
 
 // envia todo lo que está en el buffer hasta terminar
-/*
+
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < BUFFER_SIZE) {
@@ -61,7 +62,7 @@ int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
         i += l;
     }
     return i;
-}*/
+}
 
 // es un hilo creado por el listener thread, se encarga de atender a los clientes que se unan al servicio
 void *connection_handler(void *socket_desc) {
@@ -130,20 +131,12 @@ void *connection_handler(void *socket_desc) {
                 // printf("enviando parte %d de %d- \n", index, parts);
                 index++;
                 char *temp_message = client_message;
-                // send_buffer_content(&sock, &temp_message);
-                int sent_bytes = 0;
-                while (sent_bytes < BUFFER_SIZE) {
-                    int response = send(sock, client_message, BUFFER_SIZE, 0);;
-                    sent_bytes += response;
-                }
-                //send(sock, client_message, BUFFER_SIZE, 0);
+                send_buffer_content(&sock, &temp_message);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
             }
 
             strcpy(client_message, "END \n\r\n\r");  // avisamos que se va a enviar un archivo
             send(sock, client_message, strlen(client_message), 0);
-            
-            
 
             printf("Archivo enviado! %d partes de %d \n", index, parts);
 
