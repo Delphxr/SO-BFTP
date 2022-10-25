@@ -44,6 +44,18 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
     return 0;
 }
 
+
+//envia todo lo que está en el buffer hasta terminar
+int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
+    int i = 0;
+    while (i < BUFFER_SIZE) {
+        int l = send(*sock, buffer[i], strlen(*buffer), 0);
+        if (l < 0) { return l; } // this is an error
+        i += l;
+    }
+    return i;
+}
+
 // es un hilo creado por el listener thread, se encarga de atender a los clientes que se unan al servicio
 void *connection_handler(void *socket_desc) {
     // Get the socket descriptor
@@ -110,10 +122,12 @@ void *connection_handler(void *socket_desc) {
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
                 //printf("enviando parte %d de %d- \n", index, parts);
                 index ++;
-                send(sock, client_message, sizeof(client_message), 0);
+                char *temp_message = client_message;
+                send_buffer_content(&sock ,&temp_message);
+                //send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
             }
-            print_blue("Archivo enviado! %d partes de %d \n", index, parts);
+            printf("Archivo enviado! %d partes de %d \n", index, parts);
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
