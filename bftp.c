@@ -10,22 +10,43 @@
 #include "gui_drawer.h"
 #include "tree.h"
 
-int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, como guia en gui
+#define BUFFER_SIZE 2000
 
-// cuando alguien se conecta se crea un hilo con este thread (server)
+int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, se utiliza en gui
+
+int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
+    FILE *file;
+    file = fopen(*parameter, "w");
+
+    if (file == NULL) {
+        print_red("[!] Hubo un error al crear el archivo de recepción!");
+        return -1;
+    }
+    while (1) {
+        if (recv(*sock, *server_reply, BUFFER_SIZE, 0) < 0) {
+            puts("recv failed");
+            return -1;
+        }
+        fprintf(file, "%s", *server_reply);
+        memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
+    }
+    return 0;
+}
+
+// es un hilo creado por el listener thread, se encarga de atender a los clientes que se unan al servicio
 void *connection_handler(void *socket_desc) {
     // Get the socket descriptor
     int sock = *(int *)socket_desc;
 
     int read_size, c;
-    char *message, client_message[2000];
+    char *message, client_message[BUFFER_SIZE];
     FILE *file;
 
     char command[60];    // comando prncipal (open, close, cd, get, etc)
     char parameter[60];  // parametros del commando (ip, archivo, etc)
 
     // Receive a message from client
-    while ((read_size = recv(sock, client_message, 2000, 0)) > 0) {
+    while ((read_size = recv(sock, client_message, BUFFER_SIZE, 0)) > 0) {
         // dividimos el input entre commando-parametro
         sscanf(client_message, "%s %s", command, parameter);
 
@@ -42,13 +63,13 @@ void *connection_handler(void *socket_desc) {
             file = fopen(parameter, "r");
             if (file == NULL) {
                 printf("Error opening file!\n");
-                strcpy(client_message, "Hubo un error al intentar abrir el archivo");
+                strcpy(client_message, "error");
                 send(sock, client_message, strlen(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));
                 continue;
             }
 
-            int index = 0;
+            /*int index = 0;
             while ((c = fgetc(file)) != EOF) {
                 client_message[index] = c;
                 if (index == 1999) {
@@ -58,7 +79,17 @@ void *connection_handler(void *socket_desc) {
                 }
                 index++;
             }
+            send(sock, client_message, strlen(client_message), 0);*/
+
+            strcpy(client_message, "send");  // avisamos que se va a enviar un archivo
             send(sock, client_message, strlen(client_message), 0);
+            memset(client_message, 0, sizeof(client_message));
+
+            // mandamos el archivo en partes de 2000;
+            while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
+                send(sock, client_message, sizeof(client_message), 0);
+                memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
+            }
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
@@ -90,7 +121,7 @@ void *connection_handler(void *socket_desc) {
 }
 
 /* se encarga de escuchar como server, a ver si un cliente se une
-y crea un thread nuevo para que sea su server privado*/
+y crea un thread nuevo para dicho cliente tenga un servidor que lo atienda */
 void *listener_thread() {
     int socket_desc, client_sock, c, *new_sock;
     struct sockaddr_in server, client;
@@ -122,10 +153,10 @@ void *listener_thread() {
     while ((client_sock = accept(socket_desc, (struct sockaddr *)&client,
                                  (socklen_t *)&c))) {
         puts("Connection accepted");
-        pthread_t sniffer_thread;
+        pthread_t connection_handler_thread;
         new_sock = malloc(1);
         *new_sock = client_sock;
-        if (pthread_create(&sniffer_thread, NULL, connection_handler,
+        if (pthread_create(&connection_handler_thread, NULL, connection_handler,
                            (void *)new_sock) < 0) {
             perror("could not create thread");
             exit(-1);
@@ -142,7 +173,7 @@ void *listener_thread() {
 }
 
 // funcion generica para el manejo de los commandos más simples del servicio, envia un mensaje, recibe respuesta, imprime
-int command_manager(int *sock, char *server_reply[2000], char *input[60], char *parameter[60]) {
+int command_manager(int *sock, char *server_reply[BUFFER_SIZE], char *input[60], char *parameter[60]) {
     if (*sock != -1) {
         // Send some data
         if (send(*sock, *input, strlen(*input), 0) < 0) {
@@ -153,7 +184,7 @@ int command_manager(int *sock, char *server_reply[2000], char *input[60], char *
 
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
 
-        if (recv(*sock, *server_reply, 2000, 0) < 0) {
+        if (recv(*sock, *server_reply, BUFFER_SIZE, 0) < 0) {
             puts("recv failed");
             return -1;
         }
@@ -196,7 +227,7 @@ void main(int argc, char *argv[]) {
     // client
     int sock;
     struct sockaddr_in server;
-    char server_reply[2000];
+    char server_reply[BUFFER_SIZE];
 
     // menu loop
     while (1) {
@@ -242,15 +273,22 @@ void main(int argc, char *argv[]) {
 
                 memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
 
-                if (recv(sock, server_reply, 2000, 0) < 0) {
+                if (recv(sock, server_reply, BUFFER_SIZE, 0) < 0) {
                     puts("recv failed");
                     break;
                 }
-                clean_terminal();
-                print_line();
-                puts(server_reply);
-                print_line();
-                print_yellow("Presione enter para continuar...");
+
+                if (strcmp(server_reply, "error")) {
+                    clean_terminal();
+                    print_line();
+                    printf("Hubo un error al recibir el archivo");
+                    print_line();
+                    print_yellow("Presione enter para continuar...");
+                } else if (strcmp(server_reply, "send")) {
+                    char *reply_ptr = server_reply;
+                    char *par_ptr = parameter;
+                    get_file(&sock, &reply_ptr, &par_ptr);
+                }
             }
         } else if (strcmp(command, "lcd") == 0) {
             chdir(parameter);
@@ -264,7 +302,7 @@ void main(int argc, char *argv[]) {
         } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
         } else if (is_generic_funtion(command)) {  // se encarga de mann el ls, cd, pwd
-            char *reply_ptr = server_reply; 
+            char *reply_ptr = server_reply;
             char *input_ptr = input;
             char *par_ptr = parameter;
             command_manager(&sock, &reply_ptr, &input_ptr, &par_ptr);
