@@ -17,40 +17,50 @@ int actual_conections = 0;  // variable que cuenta el numero de clientes actuale
 int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], int parts) {
     FILE *file;
     file = fopen(*parameter, "a");
-    double loading_increment = 1.0/parts;
+    double loading_increment = 1.0 / parts;
     double loading = 0.0;
-    int index =0;
+    int index = 0;
+    int i;
 
     if (file == NULL) {
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
     while (1) {
-        
-
-        if (recv(*sock, *server_reply, BUFFER_SIZE, 0) < 0) {
-            puts("recv failed");
-            return -1;
+        i = 0;
+        while (i < BUFFER_SIZE) {
+            int l = recv(*sock, server_reply[i], strlen(*server_reply), 0);
+            if (l < 0) {
+                puts("recv failed");
+                return -1;
+            } 
+            i += l;
         }
-        progress_bar(loading); printf(" - %d", index); //printf(" - %s - ", *server_reply);
+        /*if (recv(*sock, *server_reply, strlen(*server_reply), 0) < 0) {
+            puts("recv failed");
+                return -1;
+        }*/
+        progress_bar(loading);
+        printf(" - %d", index);  // printf(" - %s - ", *server_reply);
         index++;
 
-        //fflush(file);
+        // fflush(file);
         fprintf(file, "%s", *server_reply);
-        
+
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
     }
     return 0;
 }
 
-
-//envia todo lo que está en el buffer hasta terminar
+// envia todo lo que está en el buffer hasta terminar
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < BUFFER_SIZE) {
         int l = send(*sock, buffer[i], strlen(*buffer), 0);
-        if (l < 0) { return l; } // this is an error
+        if (l < 0) {
+            return l;
+        }  // this is an error
         i += l;
     }
     return i;
@@ -92,17 +102,6 @@ void *connection_handler(void *socket_desc) {
                 continue;
             }
 
-            /*int index = 0;
-            while ((c = fgetc(file)) != EOF) {
-                client_message[index] = c;
-                if (index == 1999) {
-                    send(sock, client_message, strlen(client_message), 0);
-                    memset(client_message, 0, sizeof(client_message));
-                    index = 0;
-                }
-                index++;
-            }
-            send(sock, client_message, strlen(client_message), 0);*/
             // sabemos cuantas partes va a enviar
             struct stat st;
             stat(parameter, &st);
@@ -120,14 +119,14 @@ void *connection_handler(void *socket_desc) {
             int index = 1;
             print_blue("Iniciando envio del archivo... \n");
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
-                //printf("enviando parte %d de %d- \n", index, parts);
-                index ++;
+                // printf("enviando parte %d de %d- \n", index, parts);
+                index++;
                 char *temp_message = client_message;
-                send_buffer_content(&sock ,&temp_message);
-                //send(sock, client_message, sizeof(client_message), 0);
+                send_buffer_content(&sock, &temp_message);
+                // send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
             }
-            printf("Archivo enviado! %d partes de %d \n", index, parts);
+            printf("Archivo enviado! %d partes de %d - con un size de %d \n", index, parts, size);
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
@@ -356,7 +355,6 @@ void main(int argc, char *argv[]) {
             command_manager(&sock, &reply_ptr, &input_ptr, &par_ptr);
         } else {
             print_red("[!] Comando Desconocido!\n");
-            
         }
         getchar();
         memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
