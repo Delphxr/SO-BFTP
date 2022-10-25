@@ -50,13 +50,14 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
-    while (i < BUFFER_SIZE) {
+    while (i < strlen(*buffer)) {
         int l = send(*sock, *buffer, strlen(*buffer), 0);
         if (l < 0) {
             return l;
         }  // this is an error
         i += l;
-        memset(*buffer, 0, sizeof(*buffer));  // limapiamos el buffer
+        *buffer += l;
+       
     }
     return i;
 }
