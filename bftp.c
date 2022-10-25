@@ -32,10 +32,11 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
             puts("recv failed");
             return -1;
         }
-        progress_bar(loading); printf(" - %d", index);
+        progress_bar(loading); printf(" - %d", index); printf(" - %s - ", *server_reply);
         index++;
 
         fprintf(file, "%s", *server_reply);
+        
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
     }
@@ -315,6 +316,7 @@ void main(int argc, char *argv[]) {
                 } else if (strcmp(reply, "send") == 0) {
                     clean_terminal();
                     print_line();
+                    puts(server_reply);
                     printf("Recibiendo el archivo...\n");
                     char *reply_ptr = server_reply;
                     char *par_ptr = parameter;
