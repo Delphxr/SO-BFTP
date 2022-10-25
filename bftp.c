@@ -19,18 +19,22 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
     file = fopen(*parameter, "w");
     double loading_increment = 1.0/parts;
     double loading = 0.0;
+    int index =0;
 
     if (file == NULL) {
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
     while (1) {
-        progress_bar(loading);
+        
 
         if (recv(*sock, *server_reply, BUFFER_SIZE, 0) < 0) {
             puts("recv failed");
             return -1;
         }
+        progress_bar(loading); printf(" - %d", index);
+        index++;
+
         fprintf(file, "%s", *server_reply);
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
@@ -102,7 +106,7 @@ void *connection_handler(void *socket_desc) {
             int index = 1;
             print_blue("Iniciando envio del archivo... \n");
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
-                printf("enviando parte %d de %d", index, parts);
+                printf("enviando parte %d de %d- %s \n", index, parts, client_message);
                 index ++;
                 send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
