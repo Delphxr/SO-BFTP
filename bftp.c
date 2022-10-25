@@ -25,7 +25,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
-    char c;
+
     do {
         int response = recv(*sock, *server_reply, BUFFER_SIZE, MSG_WAITALL);
         if (response < 0) {
@@ -94,17 +94,6 @@ void *connection_handler(void *socket_desc) {
                 continue;
             }
 
-            /*int index = 0;
-            while ((c = fgetc(file)) != EOF) {
-                client_message[index] = c;
-                if (index == 1999) {
-                    send(sock, client_message, strlen(client_message), 0);
-                    memset(client_message, 0, sizeof(client_message));
-                    index = 0;
-                }
-                index++;
-            }
-            send(sock, client_message, strlen(client_message), 0);*/
             // sabemos cuantas partes va a enviar
             struct stat st;
             stat(parameter, &st);
@@ -148,7 +137,10 @@ void *connection_handler(void *socket_desc) {
             strcpy(client_message, print_directorio());
             send(sock, client_message, strlen(client_message), 0);
         } else if (strcmp(command, "put") == 0) {
-            printf("commando put!");
+            printf("Recibiendo el archivo...\n");
+            char *reply_ptr = client_message;
+            char *par_ptr = parameter;
+            get_file(&sock, &reply_ptr, &par_ptr, *parameter);
         } else if (strcmp(command, "pwd") == 0) {
             char pwd[100];
 
@@ -360,7 +352,53 @@ void main(int argc, char *argv[]) {
             print_line();
             print_yellow("Presione enter para continuar...");
         } else if (strcmp(command, "put") == 0) {
-            printf("commando put!");
+            FILE *file;
+            file = fopen(parameter, "r");
+            if (file == NULL) {
+                printf("Error opening file!\n");
+                continue;
+            }
+
+            // sabemos cuantas partes va a enviar
+            struct stat st;
+            stat(parameter, &st);
+            int size = st.st_size;
+            int parts = size / BUFFER_SIZE + 1;
+
+            char str[100];
+            sprintf(str, "send %d", parts);
+
+            if (send(sock, input, strlen(input), 0) < 0) {
+                print_red("[!] Send failed");
+                getchar();
+                return -1;
+            }
+
+            print_blue("Iniciando envio del archivo... \n");
+
+            int index = 0;
+            char file_buffer[BUFFER_SIZE];
+            while ((c = fgetc(file)) != EOF) {
+                file_buffer[index] = c;
+                index++;
+                if (index == 2000) {
+                    char *temp_message = file_buffer;
+                    send_buffer_content(&sock, &temp_message);
+                    memset(file_buffer, 0, sizeof(file_buffer));
+                    index = 0;
+                }
+            }
+            // mandamos lo que falta
+            char *temp_message = file_buffer;
+            send_buffer_content(&sock, &temp_message);
+            memset(file_buffer, 0, sizeof(file_buffer));
+
+            strcpy(file_buffer, "END \n\r\n\r");  // avisamos que se termino el proceso
+            send(sock, file_buffer, strlen(file_buffer), 0);
+
+            printf("Archivo enviado! %d partes de %d \n", index, parts);
+
+            fclose(file);
         } else if (is_generic_funtion(command)) {  // se encarga de mann el ls, cd, pwd
             char *reply_ptr = server_reply;
             char *input_ptr = input;
