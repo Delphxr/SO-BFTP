@@ -25,8 +25,9 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
-    while (1) {
-        int response = recv(*sock, *server_reply, BUFFER_SIZE, 0);
+    char c;
+    do {
+        int response = recv(*sock, *server_reply, BUFFER_SIZE, MSG_WAITALL);
         if (response < 0) {
             puts("recv failed");
             return -1;
@@ -36,12 +37,12 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
         printf(" - %d - ", index);  // printf(" - %s - ", *server_reply);
         index++;
 
-        // fflush(file);
+        fflush(file);
         fprintf(file, "%s", *server_reply);
 
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
-    }
+    } while (*server_reply != 0);
     return 0;
 }
 
@@ -50,7 +51,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < BUFFER_SIZE) {
-        int l = send(*sock, buffer[i], strlen(*buffer), 0);
+        int l = send(*sock, *buffer, strlen(*buffer), 0);
         if (l < 0) {
             return l;
         }  // this is an error
@@ -89,7 +90,7 @@ void *connection_handler(void *socket_desc) {
             file = fopen(parameter, "r");
             if (file == NULL) {
                 printf("Error opening file!\n");
-                strcpy(client_message, "error -1");
+                strcpy(client_message, "error 1");
                 send(sock, client_message, strlen(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));
                 continue;
@@ -317,7 +318,7 @@ void main(int argc, char *argv[]) {
 
                 memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
 
-                if (recv(sock, server_reply, BUFFER_SIZE, 0) < 0) {
+                if (recv(sock, server_reply, 7, 0) < 0) {
                     puts("recv failed");
                     break;
                 }
