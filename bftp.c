@@ -50,7 +50,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
     int i = 0;
     while (i < BUFFER_SIZE) {
-        int l = send(*sock, buffer[i], strlen(buffer[i]), 0);
+        int l = send(*sock, buffer[i], strlen(*buffer), 0);
         if (l < 0) {
             return l;
         }  // this is an error
@@ -81,7 +81,7 @@ void *connection_handler(void *socket_desc) {
 
             chdir(parameter);
             strcpy(client_message, getcwd(pwd, 100));
-            send(sock, client_message, BUFFER_SIZE, 0);
+            send(sock, client_message, strlen(client_message), 0);
 
         } else if (strcmp(command, "get") == 0) {
             // vamos a leer y devolver un mensaje con el archivo!!!!!
@@ -90,7 +90,7 @@ void *connection_handler(void *socket_desc) {
             if (file == NULL) {
                 printf("Error opening file!\n");
                 strcpy(client_message, "error -1");
-                send(sock, client_message, BUFFER_SIZE, 0);
+                send(sock, client_message, strlen(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));
                 continue;
             }
@@ -116,7 +116,7 @@ void *connection_handler(void *socket_desc) {
             sprintf(str, "send %d", parts);
 
             strcpy(client_message, str);  // avisamos que se va a enviar un archivo
-            send(sock, client_message, BUFFER_SIZE, 0);
+            send(sock, client_message, strlen(client_message), 0);
             memset(client_message, 0, sizeof(client_message));
 
             // mandamos el archivo en partes de 2000;
@@ -131,7 +131,7 @@ void *connection_handler(void *socket_desc) {
             }
 
             strcpy(client_message, "END \n\r\n\r");  // avisamos que se va a enviar un archivo
-            send(sock, client_message, BUFFER_SIZE, 0);
+            send(sock, client_message, strlen(client_message), 0);
 
             printf("Archivo enviado! %d partes de %d \n", index, parts);
 
@@ -140,14 +140,14 @@ void *connection_handler(void *socket_desc) {
             printf("commando lcd!");
         } else if (strcmp(command, "ls") == 0) {
             strcpy(client_message, print_directorio());
-            send(sock, client_message, BUFFER_SIZE, 0);
+            send(sock, client_message, strlen(client_message), 0);
         } else if (strcmp(command, "put") == 0) {
             printf("commando put!");
         } else if (strcmp(command, "pwd") == 0) {
             char pwd[100];
 
             strcpy(client_message, getcwd(pwd, 100));
-            send(sock, client_message, BUFFER_SIZE, 0);
+            send(sock, client_message, strlen(client_message), 0);
         }
 
         memset(client_message, 0, sizeof(client_message));
@@ -220,7 +220,7 @@ void *listener_thread() {
 int command_manager(int *sock, char *server_reply[BUFFER_SIZE], char *input[60], char *parameter[60]) {
     if (*sock != -1) {
         // Send some data
-        if (send(*sock, *input, BUFFER_SIZE, 0) < 0) {
+        if (send(*sock, *input, strlen(*input), 0) < 0) {
             print_red("[!] Send failed");
             getchar();
             return -1;
