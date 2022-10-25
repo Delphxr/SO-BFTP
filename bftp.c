@@ -14,21 +14,26 @@
 
 int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, se utiliza en gui
 
-int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
+int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], int parts) {
     FILE *file;
     file = fopen(*parameter, "w");
+    double loading_increment = 1.0/parts;
+    double loading = 0.0;
 
     if (file == NULL) {
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
     while (1) {
+        progress_bar(loading);
+
         if (recv(*sock, *server_reply, BUFFER_SIZE, 0) < 0) {
             puts("recv failed");
             return -1;
         }
         fprintf(file, "%s", *server_reply);
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
+        loading += loading_increment;
     }
     return 0;
 }
@@ -63,7 +68,7 @@ void *connection_handler(void *socket_desc) {
             file = fopen(parameter, "r");
             if (file == NULL) {
                 printf("Error opening file!\n");
-                strcpy(client_message, "error");
+                strcpy(client_message, "error -1");
                 send(sock, client_message, strlen(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));
                 continue;
@@ -80,16 +85,29 @@ void *connection_handler(void *socket_desc) {
                 index++;
             }
             send(sock, client_message, strlen(client_message), 0);*/
+            // sabemos cuantas partes va a enviar
+            struct stat st;
+            stat(parameter, &st);
+            int size = st.st_size;
+            int parts = size / BUFFER_SIZE + 1;
 
-            strcpy(client_message, "send");  // avisamos que se va a enviar un archivo
+            char str[100];
+            sprintf(str, "send %d", parts);
+
+            strcpy(client_message, str);  // avisamos que se va a enviar un archivo
             send(sock, client_message, strlen(client_message), 0);
             memset(client_message, 0, sizeof(client_message));
 
             // mandamos el archivo en partes de 2000;
+            int index = 1;
+            print_blue("Iniciando envio del archivo... \n");
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
+                printf("enviando parte %d de %d", index, parts);
+                index ++;
                 send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer
             }
+            print_blue("Archivo enviado!\n");
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
@@ -278,16 +296,25 @@ void main(int argc, char *argv[]) {
                     break;
                 }
 
-                if (strcmp(server_reply, "error")) {
+                // tomamos la respuesta y le damos formato
+                char reply[20];
+                int parts[60];
+                sscanf(server_reply, "%s %d", reply, parts);
+
+                if (strcmp(reply, "error") == 0) {
                     clean_terminal();
                     print_line();
-                    printf("Hubo un error al recibir el archivo");
+                    printf("Hubo un error al recibir el archivo\n");
+                    puts(server_reply);
                     print_line();
                     print_yellow("Presione enter para continuar...");
-                } else if (strcmp(server_reply, "send")) {
+                } else if (strcmp(reply, "send") == 0) {
+                    clean_terminal();
+                    print_line();
+                    printf("Recibiendo el archivo...\n");
                     char *reply_ptr = server_reply;
                     char *par_ptr = parameter;
-                    get_file(&sock, &reply_ptr, &par_ptr);
+                    get_file(&sock, &reply_ptr, &par_ptr, *parts);
                 }
             }
         } else if (strcmp(command, "lcd") == 0) {
@@ -308,10 +335,7 @@ void main(int argc, char *argv[]) {
             command_manager(&sock, &reply_ptr, &input_ptr, &par_ptr);
         } else {
             print_red("[!] Comando Desconocido!\n");
-            /*for (size_t i = 0; i < 11; i++) {
-                progress_bar(i / 10.0);
-                usleep(35000);
-            }*/
+            
         }
         getchar();
         memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
