@@ -371,13 +371,14 @@ void main(int argc, char *argv[]) {
             if (send(sock, input, strlen(input), 0) < 0) {
                 print_red("[!] Send failed");
                 getchar();
-                return -1;
+                break;
             }
 
             print_blue("Iniciando envio del archivo... \n");
 
             int index = 0;
             char file_buffer[BUFFER_SIZE];
+            char c;
             while ((c = fgetc(file)) != EOF) {
                 file_buffer[index] = c;
                 index++;
