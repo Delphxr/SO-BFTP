@@ -35,6 +35,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
         progress_bar(loading); printf(" - %d", index); printf(" - %s - ", *server_reply);
         index++;
 
+        fflush(file);
         fprintf(file, "%s", *server_reply);
         
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
@@ -107,7 +108,7 @@ void *connection_handler(void *socket_desc) {
             int index = 1;
             print_blue("Iniciando envio del archivo... \n");
             while (fgets(client_message, BUFFER_SIZE, file) != NULL) {
-                printf("enviando parte %d de %d- %s \n", index, parts, client_message);
+                printf("enviando parte %d de %d- \n", index, parts);
                 index ++;
                 send(sock, client_message, sizeof(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));  // limpiamos buffer

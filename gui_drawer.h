@@ -18,6 +18,7 @@ void print_yellow(char message[]){
 void progress_bar(double percentage) {
     char bar[] = "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||";
     int pb_width = 70;
+    if (percentage > 1) percentage = 1;
     int val = (int)(percentage * 100);
     int lpad = (int)(percentage * pb_width);
     int rpad = pb_width - lpad;
