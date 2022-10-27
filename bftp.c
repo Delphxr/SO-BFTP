@@ -14,12 +14,9 @@
 
 int actual_conections = 0;  // variable que cuenta el numero de clientes actuales, se utiliza en gui
 
-int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], int parts) {
+int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
     FILE *file;
-    file = fopen(*parameter, "a");
-    double loading_increment = 1.0 / parts;
-    double loading = 0.0;
-    int index = 0;
+    file = fopen(*parameter, "ab");
 
     if (file == NULL) {
         print_red("[!] Hubo un error al crear el archivo de recepción!");
@@ -27,11 +24,17 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
     }
 
     printf("Reading Picture Byte Array\n");
-    
-    int nb = read(*sock, *server_reply, BUFFER_SIZE);
-    while (nb > 0) {
-        fwrite(*server_reply, 1, nb, file);
-        nb = read(*sock, *server_reply, BUFFER_SIZE);
+
+    int received_data;
+    int binary_data = read(*sock, *server_reply, BUFFER_SIZE);
+    received_data += binary_data;
+    int index = 0;
+    while (binary_data > 0) {
+        printf("%s\n", *server_reply);
+        fwrite(*server_reply, 1, BUFFER_SIZE, file);
+        
+        binary_data = read(*sock, *server_reply, BUFFER_SIZE);
+        usleep(1000);
     }
     fclose(file);
     /*
@@ -85,7 +88,7 @@ void *connection_handler(void *socket_desc) {
             file = fopen(parameter, "rb");
             if (file == NULL) {
                 printf("Error opening file!\n");
-                strcpy(client_message, "error 1");
+                strcpy(client_message, "");
                 send(sock, client_message, strlen(client_message), 0);
                 memset(client_message, 0, sizeof(client_message));
                 continue;
@@ -109,13 +112,11 @@ void *connection_handler(void *socket_desc) {
                 sended_data = 0;
                 while (sended_data < binary_data) {
                     int l = send(sock, client_message, strlen(client_message), 0);
+                    usleep(1000);
                     sended_data += l;
                 }
                 binary_data = fread(client_message, 1, sizeof(client_message), file);
             }
-
-            strcpy(client_message, "END \n\r\n\r");  // avisamos que se termino el proceso
-            send(sock, client_message, strlen(client_message), 0);
 
             printf("Archivo enviado! %d \n", size / BUFFER_SIZE);
 
@@ -126,10 +127,7 @@ void *connection_handler(void *socket_desc) {
             strcpy(client_message, print_directorio());
             send(sock, client_message, strlen(client_message), 0);
         } else if (strcmp(command, "put") == 0) {
-            printf("Recibiendo el archivo...\n");
-            char *reply_ptr = client_message;
-            char *par_ptr = parameter;
-            get_file(&sock, &reply_ptr, &par_ptr, *parameter);
+            printf("a");
         } else if (strcmp(command, "pwd") == 0) {
             char pwd[100];
 
@@ -304,32 +302,10 @@ void main(int argc, char *argv[]) {
 
                 memset(server_reply, 0, sizeof(server_reply));  // limapiamos el buffer
 
-                if (recv(sock, server_reply, 7, 0) < 0) {
-                    puts("recv failed");
-                    break;
-                }
-
-                // tomamos la respuesta y le damos formato
-                char reply[20];
-                int parts[60];
-                sscanf(server_reply, "%s %d", reply, parts);
-
-                if (strcmp(reply, "error") == 0) {
-                    clean_terminal();
-                    print_line();
-                    printf("Hubo un error al recibir el archivo\n");
-                    puts(server_reply);
-                    print_line();
-                    print_yellow("Presione enter para continuar...");
-                } else if (strcmp(reply, "send") == 0) {
-                    clean_terminal();
-                    print_line();
-                    puts(server_reply);
-                    printf("Recibiendo el archivo...\n");
-                    char *reply_ptr = server_reply;
-                    char *par_ptr = parameter;
-                    get_file(&sock, &reply_ptr, &par_ptr, *parts);
-                }
+                printf("Recibiendo el archivo...\n");
+                char *reply_ptr = server_reply;
+                char *par_ptr = parameter;
+                get_file(&sock, &reply_ptr, &par_ptr);
             }
         } else if (strcmp(command, "lcd") == 0) {
             chdir(parameter);
