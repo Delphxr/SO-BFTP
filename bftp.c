@@ -26,6 +26,15 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
         return -1;
     }
 
+    printf("Reading Picture Byte Array\n");
+    
+    int nb = read(*sock, *server_reply, BUFFER_SIZE);
+    while (nb > 0) {
+        fwrite(*server_reply, 1, nb, file);
+        nb = read(*sock, *server_reply, BUFFER_SIZE);
+    }
+    fclose(file);
+    /*
     do {
         int response = recv(*sock, *server_reply, BUFFER_SIZE, MSG_WAITALL);
         if (response < 0) {
@@ -42,20 +51,8 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60], in
 
         memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
         loading += loading_increment;
-    } while (*server_reply != 0);
+    } while (*server_reply != 0);*/
     return 0;
-}
-
-// envia todo lo que está en el buffer hasta terminar
-
-int send_buffer_content(int *sock, char *buffer[BUFFER_SIZE]) {
-    int i = 0;
-    while (i < strlen(*buffer)) {
-        int l = send(*sock, *buffer, strlen(*buffer), 0);
-        i += l;
-        *buffer += l;
-    }
-    return i;
 }
 
 // es un hilo creado por el listener thread, se encarga de atender a los clientes que se unan al servicio
@@ -85,7 +82,7 @@ void *connection_handler(void *socket_desc) {
         } else if (strcmp(command, "get") == 0) {
             // vamos a leer y devolver un mensaje con el archivo!!!!!
 
-            file = fopen(parameter, "r");
+            file = fopen(parameter, "rb");
             if (file == NULL) {
                 printf("Error opening file!\n");
                 strcpy(client_message, "error 1");
@@ -94,41 +91,33 @@ void *connection_handler(void *socket_desc) {
                 continue;
             }
 
-            // sabemos cuantas partes va a enviar
-            struct stat st;
-            stat(parameter, &st);
-            int size = st.st_size;
-            int parts = size / BUFFER_SIZE + 1;
+            // sacamos el tamanno del archivo
+            int size;
+            fseek(file, 0, SEEK_END);
+            size = ftell(file);
+            fseek(file, 0, SEEK_SET);
 
-            char str[100];
-            sprintf(str, "send %d", parts);
-
-            strcpy(client_message, str);  // avisamos que se va a enviar un archivo
+            /*strcpy(client_message, str);  // avisamos que se va a enviar un archivo
             send(sock, client_message, strlen(client_message), 0);
-            memset(client_message, 0, sizeof(client_message));
+            memset(client_message, 0, sizeof(client_message));*/
 
             print_blue("Iniciando envio del archivo... \n");
 
-            int index = 0;
-            while ((c = fgetc(file)) != EOF) {
-                client_message[index] = c;
-                index++;
-                if (index == 2000) {
-                    char *temp_message = client_message;
-                    send_buffer_content(&sock, &temp_message);
-                    memset(client_message, 0, sizeof(client_message));
-                    index = 0;
+            int sended_data;
+            int binary_data = fread(client_message, 1, sizeof(client_message), file);
+            while (!feof(file)) {
+                sended_data = 0;
+                while (sended_data < binary_data) {
+                    int l = send(sock, client_message, strlen(client_message), 0);
+                    sended_data += l;
                 }
+                binary_data = fread(client_message, 1, sizeof(client_message), file);
             }
-            // mandamos lo que falta
-            char *temp_message = client_message;
-            send_buffer_content(&sock, &temp_message);
-            memset(client_message, 0, sizeof(client_message));
 
             strcpy(client_message, "END \n\r\n\r");  // avisamos que se termino el proceso
             send(sock, client_message, strlen(client_message), 0);
 
-            printf("Archivo enviado! %d partes de %d \n", index, parts);
+            printf("Archivo enviado! %d \n", size / BUFFER_SIZE);
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
@@ -352,54 +341,7 @@ void main(int argc, char *argv[]) {
             print_line();
             print_yellow("Presione enter para continuar...");
         } else if (strcmp(command, "put") == 0) {
-            FILE *file;
-            file = fopen(parameter, "r");
-            if (file == NULL) {
-                printf("Error opening file!\n");
-                continue;
-            }
-
-            // sabemos cuantas partes va a enviar
-            struct stat st;
-            stat(parameter, &st);
-            int size = st.st_size;
-            int parts = size / BUFFER_SIZE + 1;
-
-            char str[100];
-            sprintf(str, "send %d", parts);
-
-            if (send(sock, input, strlen(input), 0) < 0) {
-                print_red("[!] Send failed");
-                getchar();
-                break;
-            }
-
-            print_blue("Iniciando envio del archivo... \n");
-
-            int index = 0;
-            char file_buffer[BUFFER_SIZE];
-            char c;
-            while ((c = fgetc(file)) != EOF) {
-                file_buffer[index] = c;
-                index++;
-                if (index == 2000) {
-                    char *temp_message = file_buffer;
-                    send_buffer_content(&sock, &temp_message);
-                    memset(file_buffer, 0, sizeof(file_buffer));
-                    index = 0;
-                }
-            }
-            // mandamos lo que falta
-            char *temp_message = file_buffer;
-            send_buffer_content(&sock, &temp_message);
-            memset(file_buffer, 0, sizeof(file_buffer));
-
-            strcpy(file_buffer, "END \n\r\n\r");  // avisamos que se termino el proceso
-            send(sock, file_buffer, strlen(file_buffer), 0);
-
-            printf("Archivo enviado! %d partes de %d \n", index, parts);
-
-            fclose(file);
+            printf("put\n");
         } else if (is_generic_funtion(command)) {  // se encarga de mann el ls, cd, pwd
             char *reply_ptr = server_reply;
             char *input_ptr = input;
