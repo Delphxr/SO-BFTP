@@ -18,7 +18,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
     FILE *file;
     file = fopen(*parameter, "ab");
 
-    if (file == NULL) {
+    if (file == NULL) {s
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
@@ -32,12 +32,12 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
     while (binary_data > 0) {
         printf("%s\n", *server_reply);
         fwrite(*server_reply, 1, BUFFER_SIZE, file);
-        
+
         binary_data = read(*sock, *server_reply, BUFFER_SIZE);
         usleep(10000);
     }
     fclose(file);
-    
+
     return 0;
 }
 
@@ -77,16 +77,6 @@ void *connection_handler(void *socket_desc) {
                 continue;
             }
 
-            // sacamos el tamanno del archivo
-            int size;
-            fseek(file, 0, SEEK_END);
-            size = ftell(file);
-            fseek(file, 0, SEEK_SET);
-
-            /*strcpy(client_message, str);  // avisamos que se va a enviar un archivo
-            send(sock, client_message, strlen(client_message), 0);
-            memset(client_message, 0, sizeof(client_message));*/
-
             print_blue("Iniciando envio del archivo... \n");
 
             int sended_data;
@@ -103,7 +93,7 @@ void *connection_handler(void *socket_desc) {
                 binary_data = fread(client_message, 1, sizeof(client_message), file);
             }
 
-            printf("Archivo enviado! %d \n", size / BUFFER_SIZE);
+            printf("Archivo enviado! \n");
 
             fclose(file);
         } else if (strcmp(command, "lcd") == 0) {
@@ -112,7 +102,12 @@ void *connection_handler(void *socket_desc) {
             strcpy(client_message, print_directorio());
             send(sock, client_message, strlen(client_message), 0);
         } else if (strcmp(command, "put") == 0) {
-            printf("a");
+            printf("Recibiendo el archivo...\n");
+            memset(client_message, 0, sizeof(client_message));
+
+            char *reply_ptr = client_message;
+            char *par_ptr = parameter;
+            get_file(&sock, &reply_ptr, &par_ptr);
         } else if (strcmp(command, "pwd") == 0) {
             char pwd[100];
 
@@ -302,7 +297,41 @@ void main(int argc, char *argv[]) {
             print_line();
             print_yellow("Presione enter para continuar...");
         } else if (strcmp(command, "put") == 0) {
-            printf("put\n");
+            // Send some data
+            if (send(sock, input, strlen(input), 0) < 0) {
+                print_red("[!] Send failed");
+                getchar();
+                continue;
+            }
+            usleep(250000);
+
+            FILE *file;
+            file = fopen(parameter, "rb");
+            if (file == NULL) {
+                printf("Error opening file!\n");
+                getchar();
+                continue;
+            }
+
+            print_blue("Iniciando envio del archivo... \n");
+
+            int sended_data;
+            int binary_data = fread(server_reply, 1, sizeof(server_reply), file);
+            while (1) {
+                sended_data = 0;
+                while (sended_data < binary_data) {
+                    int l = send(sock, server_reply, strlen(server_reply), 0);
+                    usleep(10000);
+                    sended_data += l;
+                }
+                memset(server_reply, 0, sizeof(server_reply));
+                if (feof(file)) break;
+                binary_data = fread(server_reply, 1, sizeof(server_reply), file);
+            }
+
+            printf("Archivo enviado! \n");
+
+            fclose(file);
         } else if (is_generic_funtion(command)) {  // se encarga de mann el ls, cd, pwd
             char *reply_ptr = server_reply;
             char *input_ptr = input;
