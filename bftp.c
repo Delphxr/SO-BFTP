@@ -34,27 +34,10 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
         fwrite(*server_reply, 1, BUFFER_SIZE, file);
         
         binary_data = read(*sock, *server_reply, BUFFER_SIZE);
-        usleep(1000);
+        usleep(10000);
     }
     fclose(file);
-    /*
-    do {
-        int response = recv(*sock, *server_reply, BUFFER_SIZE, MSG_WAITALL);
-        if (response < 0) {
-            puts("recv failed");
-            return -1;
-        }
-
-        progress_bar(loading);
-        printf(" - %d - ", index);  // printf(" - %s - ", *server_reply);
-        index++;
-
-        fflush(file);
-        fprintf(file, "%s", *server_reply);
-
-        memset(*server_reply, 0, sizeof(*server_reply));  // limapiamos el buffer
-        loading += loading_increment;
-    } while (*server_reply != 0);*/
+    
     return 0;
 }
 
@@ -108,13 +91,14 @@ void *connection_handler(void *socket_desc) {
 
             int sended_data;
             int binary_data = fread(client_message, 1, sizeof(client_message), file);
-            while (!feof(file)) {
+            while (1) {
                 sended_data = 0;
                 while (sended_data < binary_data) {
                     int l = send(sock, client_message, strlen(client_message), 0);
-                    usleep(1000);
+                    usleep(10000);
                     sended_data += l;
                 }
+                if (feof(file)) break;
                 binary_data = fread(client_message, 1, sizeof(client_message), file);
             }
 
