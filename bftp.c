@@ -98,6 +98,7 @@ void *connection_handler(void *socket_desc) {
                     usleep(10000);
                     sended_data += l;
                 }
+                memset(client_message, 0, sizeof(client_message));
                 if (feof(file)) break;
                 binary_data = fread(client_message, 1, sizeof(client_message), file);
             }
