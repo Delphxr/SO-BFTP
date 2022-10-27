@@ -18,7 +18,7 @@ int get_file(int *sock, char *server_reply[BUFFER_SIZE], char *parameter[60]) {
     FILE *file;
     file = fopen(*parameter, "ab");
 
-    if (file == NULL) {s
+    if (file == NULL) {
         print_red("[!] Hubo un error al crear el archivo de recepción!");
         return -1;
     }
